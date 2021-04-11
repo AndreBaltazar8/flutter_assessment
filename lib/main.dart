@@ -1,113 +1,103 @@
+import 'dart:async';
+
+import 'package:audioplayers/audio_cache.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_assessment/models/coin.dart';
+import 'package:flutter_assessment/widgets/coin_list.dart';
+
+const kCoinReal = 'Real';
+const kCoinFake = 'Fake';
 
 void main() {
-  runApp(MyApp());
+  runApp(AutomaticCoinDetectorApp());
 }
 
-class MyApp extends StatelessWidget {
-  // This widget is the root of your application.
+/// The main widget of the app
+class AutomaticCoinDetectorApp extends StatelessWidget {
+  final Stream<String> _coinStream = Stream.periodic(
+    Duration(seconds: 2),
+    (count) => count % 2 == 0 ? kCoinReal : kCoinFake,
+  ).asBroadcastStream();
+
   @override
   Widget build(BuildContext context) {
-    return MaterialApp(
-      title: 'Flutter Demo',
-      theme: ThemeData(
-        // This is the theme of your application.
-        //
-        // Try running your application with "flutter run". You'll see the
-        // application has a blue toolbar. Then, without quitting the app, try
-        // changing the primarySwatch below to Colors.green and then invoke
-        // "hot reload" (press "r" in the console where you ran "flutter run",
-        // or simply save your changes to "hot reload" in a Flutter IDE).
-        // Notice that the counter didn't reset back to zero; the application
-        // is not restarted.
-        primarySwatch: Colors.blue,
-      ),
-      home: MyHomePage(title: 'Flutter Demo Home Page'),
-    );
+    return StreamBuilder<String>(
+        stream: _coinStream,
+        builder: (context, snapshot) {
+          return MaterialApp(
+            title: snapshot.hasData ? snapshot.data! : 'Automated Coin Detector',
+            theme: ThemeData(
+              primarySwatch: Colors.blue,
+            ),
+            home: MainPage(coinStream: _coinStream),
+          );
+        });
   }
 }
 
-class MyHomePage extends StatefulWidget {
-  MyHomePage({Key? key, this.title}) : super(key: key);
+/// THe main page of the app
+class MainPage extends StatefulWidget {
+  /// Coin stream that will be used to display the list
+  final Stream coinStream;
 
-  // This widget is the home page of your application. It is stateful, meaning
-  // that it has a State object (defined below) that contains fields that affect
-  // how it looks.
-
-  // This class is the configuration for the state. It holds the values (in this
-  // case the title) provided by the parent (in this case the App widget) and
-  // used by the build method of the State. Fields in a Widget subclass are
-  // always marked "final".
-
-  final String? title;
+  MainPage({Key? key, required this.coinStream}) : super(key: key);
 
   @override
-  _MyHomePageState createState() => _MyHomePageState();
+  _MainPageState createState() => _MainPageState();
 }
 
-class _MyHomePageState extends State<MyHomePage> {
-  int _counter = 0;
+class _MainPageState extends State<MainPage> {
+  final List<Coin> _coins = List.empty(growable: true);
+  String? _lastCoin;
+  GlobalKey<CoinListState> _listKey = GlobalKey();
 
-  void _incrementCounter() {
-    setState(() {
-      // This call to setState tells the Flutter framework that something has
-      // changed in this State, which causes it to rerun the build method below
-      // so that the display can reflect the updated values. If we changed
-      // _counter without calling setState(), then the build method would not be
-      // called again, and so nothing would appear to happen.
-      _counter++;
+  @override
+  void initState() {
+    widget.coinStream.listen((coin) {
+      setState(() {
+        _coins.add(Coin(coin));
+        _listKey.currentState?.addCoin(_coins.length - 1);
+        _lastCoin = coin;
+        if (coin == kCoinReal) _playSoundFile();
+      });
     });
+    super.initState();
+  }
+
+  _playSoundFile() {
+    AudioCache cache = new AudioCache();
+    cache.play('coin10.wav');
   }
 
   @override
   Widget build(BuildContext context) {
-    // This method is rerun every time setState is called, for instance as done
-    // by the _incrementCounter method above.
-    //
-    // The Flutter framework has been optimized to make rerunning build methods
-    // fast, so that you can just rebuild anything that needs updating rather
-    // than having to individually change instances of widgets.
+    var lastCoin = _lastCoin;
     return Scaffold(
       appBar: AppBar(
-        // Here we take the value from the MyHomePage object that was created by
-        // the App.build method, and use it to set our appbar title.
-        title: Text(widget.title!),
+        title: Text('Last: ${lastCoin != null ? _lastCoin : 'No coin'}'),
+        actions: [
+          IconButton(
+            icon: Icon(Icons.refresh),
+            onPressed: () {
+              setState(() {
+                var count = _coins.length;
+                _coins.clear();
+                _listKey.currentState?.clear(count);
+                _lastCoin = null;
+              });
+            },
+          ),
+        ],
       ),
-      body: Center(
-        // Center is a layout widget. It takes a single child and positions it
-        // in the middle of the parent.
-        child: Column(
-          // Column is also a layout widget. It takes a list of children and
-          // arranges them vertically. By default, it sizes itself to fit its
-          // children horizontally, and tries to be as tall as its parent.
-          //
-          // Invoke "debug painting" (press "p" in the console, choose the
-          // "Toggle Debug Paint" action from the Flutter Inspector in Android
-          // Studio, or the "Toggle Debug Paint" command in Visual Studio Code)
-          // to see the wireframe for each widget.
-          //
-          // Column has various properties to control how it sizes itself and
-          // how it positions its children. Here we use mainAxisAlignment to
-          // center the children vertically; the main axis here is the vertical
-          // axis because Columns are vertical (the cross axis would be
-          // horizontal).
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: <Widget>[
-            Text(
-              'You have pushed the button this many times:',
-            ),
-            Text(
-              '$_counter',
-              style: Theme.of(context).textTheme.headline4,
-            ),
-          ],
-        ),
+      body: CoinList(
+        key: _listKey,
+        itemLookup: (i) => _coins[i],
+        onExpand: (coin) {
+          if (coin.coin == kCoinReal) _playSoundFile();
+        },
+        numItems: _coins.length,
       ),
-      floatingActionButton: FloatingActionButton(
-        onPressed: _incrementCounter,
-        tooltip: 'Increment',
-        child: Icon(Icons.add),
-      ), // This trailing comma makes auto-formatting nicer for build methods.
     );
   }
 }
