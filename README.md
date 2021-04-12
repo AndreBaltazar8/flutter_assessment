@@ -2,6 +2,8 @@
 
 This is a simple app that prints coins from a periodic Stream.
 
+Web version without sound: [https://andrebaltazar8.github.io/flutter_assessment/](https://andrebaltazar8.github.io/flutter_assessment/)
+
 Build as a Flutter Assessment.
 
 ## Getting Started
